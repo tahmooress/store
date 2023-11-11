@@ -1,0 +1,4 @@
+BEGIN;
+DROP INDEX IF EXISTS tag_name_index_uq;
+DROP TABLE IF EXISTS tag;
+COMMIT;
