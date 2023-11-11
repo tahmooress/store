@@ -27,10 +27,6 @@ func (s *Service) FetchFileObject(ctx context.Context, filter *model.Filter) (
 			return nil, fmt.Errorf("service FetchFileObject: %s", err)
 		}
 
-		if err := os.RemoveAll(fo.StorageLocation); err != nil {
-			return nil, fmt.Errorf("service FetchFileObject: %s", err)
-		}
-
 		fileObjs[i] = *fo
 	}
 
@@ -69,43 +65,36 @@ func (s *Service) StoreFileObject(ctx context.Context, fileObj *model.FileObject
 func (s *Service) fsStore(fileObject *model.FileObject) error {
 	f, err := os.OpenFile(fileObject.StorageLocation, os.O_CREATE|os.O_RDWR, os.ModePerm)
 	if err != nil {
-		return fmt.Errorf("createFileObject: %s", err)
+		return fmt.Errorf("fsStore: %s", err)
 	}
 
 	defer f.Close()
 
 	content, err := io.ReadAll(fileObject.Content)
 	if err != nil {
-		return fmt.Errorf("createFileObject: %s", err)
+		return fmt.Errorf("fsStore: %s", err)
 	}
 
 	encContenct, err := encryptWithAES(s.encryptionPass, content)
 	if err != nil {
-		return fmt.Errorf("createFileObject: %s", err)
+		return fmt.Errorf("fsStore: %s", err)
 	}
 
 	if _, err := f.Write(encContenct); err != nil {
-		return fmt.Errorf("createFileObject: %s", err)
+		return fmt.Errorf("fsStore: %s", err)
 	}
 	return nil
 }
 
 func (s *Service) fsLoad(fileObject *model.FileObject) (*model.FileObject, error) {
-	f, err := os.OpenFile(fileObject.StorageLocation, os.O_RDWR, os.ModePerm)
+	content, err := readFile(fileObject.StorageLocation)
 	if err != nil {
-		return nil, fmt.Errorf("createFileObject: %s", err)
-	}
-
-	defer f.Close()
-
-	content, err := io.ReadAll(f)
-	if err != nil {
-		return nil, fmt.Errorf("createFileObject: %s", err)
+		return nil, fmt.Errorf("fsLoad: %s", err)
 	}
 
 	b, err := decryptAES(content, s.encryptionPass)
 	if err != nil {
-		return nil, fmt.Errorf("createFileObject: %s", err)
+		return nil, fmt.Errorf("fsLoad: %s", err)
 	}
 
 	fo := *fileObject
@@ -127,6 +116,12 @@ func (s *Service) DeleteFileObject(ctx context.Context, fileObj []model.FileObje
 			return err
 		}
 
+		for _, fo := range fileObj {
+			if err := os.RemoveAll(fo.StorageLocation); err != nil {
+				return err
+			}
+		}
+
 		return tx.UpdateTotalStorage(-size)
 	})
 	if err != nil {
@@ -134,4 +129,20 @@ func (s *Service) DeleteFileObject(ctx context.Context, fileObj []model.FileObje
 	}
 
 	return nil
+}
+
+func readFile(path string) ([]byte, error) {
+	f, err := os.OpenFile(path, os.O_RDWR, os.ModePerm)
+	if err != nil {
+		return nil, fmt.Errorf("createFileObject: %s", err)
+	}
+
+	defer f.Close()
+
+	content, err := io.ReadAll(f)
+	if err != nil {
+		return nil, fmt.Errorf("createFileObject: %s", err)
+	}
+
+	return content, nil
 }
