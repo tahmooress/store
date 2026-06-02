@@ -1,1 +1,1 @@
-# store
+# Simple File (object) storage 
